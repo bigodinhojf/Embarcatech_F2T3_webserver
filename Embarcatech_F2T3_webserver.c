@@ -126,6 +126,9 @@ int main()
     gpio_init(button_A); // Inicia a GPIO 5 do botão A
     gpio_set_dir(button_A, GPIO_IN); // Define a direção da GPIO 5 do botão A como entrada
     gpio_pull_up(button_A); // Habilita o resistor de pull up da GPIO 5 do botão A
+    gpio_init(button_B); // Inicia a GPIO 6 do botão Bbutton_B
+    gpio_set_dir(button_B, GPIO_IN); // Define a direção da GPIO 6 do botão Bbutton_B como entrada
+    gpio_pull_up(button_B); // Habilita o resistor de pull up da GPIO 6 do botão Bbutton_B
 
     // PWM
     pwm_init_gpio(LED_Green, 100); // Inicia o PWM para a GPIO 11 do LED Verde
@@ -222,18 +225,18 @@ static err_t tcp_server_accept(void *arg, struct tcp_pcb *newpcb, err_t err)
 // Tratamento do request do usuário - digite aqui
 void user_request(char **request){
 
-    if (strstr(*request, "GET /blue_on") != NULL)
+    if (strstr(*request, "GET /led_on") != NULL)
     {
         LED_activate = true;
     }
-    else if (strstr(*request, "GET /blue_off") != NULL)
+    else if (strstr(*request, "GET /led_off") != NULL)
     {
         LED_activate = false;
     }
-    // else if (strstr(*request, "GET /green_on") != NULL)
-    // {
-    //     gpio_put(LED_GREEN_PIN, 1);
-    // }
+    else if (strstr(*request, "GET /?r=") != NULL)
+    {
+        sscanf(*request, "GET /?r=%f&g=%f&b=%f&i=%f", &cor_vermelho, &cor_verde, &cor_azul, &intensidade);
+    }
     // else if (strstr(*request, "GET /green_off") != NULL)
     // {
     //     gpio_put(LED_GREEN_PIN, 0);
@@ -254,6 +257,8 @@ void user_request(char **request){
     // {
     //     cyw43_arch_gpio_put(LED_PIN, 0);
     // }
+
+    printf("Led: %d | Vermelho: %.1f | Verde: %.1f | Azul: %.1f | Intensidade: %.1f", LED_activate, cor_vermelho, cor_verde, cor_azul, intensidade);
 };
 
 // Função de callback para processar requisições HTTP
@@ -287,22 +292,37 @@ static err_t tcp_server_recv(void *arg, struct tcp_pcb *tpcb, struct pbuf *p, er
              "<!DOCTYPE html>\n"
              "<html>\n"
              "<head>\n"
-             "<title> Embarcatech - LED Control </title>\n"
+             "<title>Minha casa</title>\n"
              "<style>\n"
-             "body { background-color:rgb(217, 92, 255); font-family: Arial, sans-serif; text-align: center; margin-top: 50px; }\n"
-             "h1 { font-size: 64px; margin-bottom: 30px; }\n"
-             "button { background-color: LightGray; font-size: 36px; margin: 10px; padding: 20px 40px; border-radius: 10px; }\n"
-             ".temperature { font-size: 48px; margin-top: 30px; color: #333; }\n"
+             "body{background-color:#6E0000;font-family:Arial,sans-serif;text-align:center;margin-top:50px;color:#fff;}\n"
+             "h1{font-size:64px;margin-bottom:30px;}\n"
+             "h2{font-size:48px;margin:10px;}\n"
+             "label{font-size:24px;}\n"
+            //  "input{padding:5px;border-radius:10px;margin: 10px;}\n"
+             "button{background-color:#C84646;font-size:24px;margin:10px;padding:15px 30px;border-radius:10px;color:#fff;}\n"
              "</style>\n"
              "</head>\n"
              "<body>\n"
-             "<h1>Embarcatech: LED Control</h1>\n"
-             "<form action=\"./blue_on\"><button>Ligar LED</button></form>\n"
-             "<form action=\"./blue_off\"><button>Desligar LED</button></form>\n"
-             "<form action=\"./green_on\"><button>Ligar Verde</button></form>\n"
-             "<form action=\"./green_off\"><button>Desligar Verde</button></form>\n"
-             "<form action=\"./red_on\"><button>Ligar Vermelho</button></form>\n"
-             "<form action=\"./red_off\"><button>Desligar Vermelho</button></form>\n"
+             "<h1>Central da casa</h1>\n"
+             "<h2>Lampada</h2>\n"
+             "<form action=\"./led_on\"><button>On</button></form>\n"
+             "<form action=\"./led_off\"><button>Off</button></form>\n"
+             "<form action=\"/\" method=\"GET\">\n"
+             "<label>Vermelho (0-255):</label>\n"
+             "<input type=\"number\" name=\"r\" min=\"0\" max=\"255\" required>\n"
+             "<label>Verde (0-255):</label>\n"
+             "<input type=\"number\" name=\"g\" min=\"0\" max=\"255\" required>\n"
+             "<label>Azul (0-255):</label>\n"
+             "<input type=\"number\" name=\"b\" min=\"0\" max=\"255\" required>\n"
+             "<label>Intensidade (0-100):</label>\n"
+             "<input type=\"number\" name=\"i\" min=\"0\" max=\"100\" required>\n"
+             "<button type=\"submit\">Aplicar</button>\n"
+             "</form>\n"
+            //  "<h2>Alarme</h2>\n"
+            //  "<div class=\"centralizar\">\n"
+            //  "<form action=\"./alarme_on\"><button>Ativar alarme</button></form>\n"
+            //  "<form action=\"./alarme_off\"><button>Desativar alarme</button></form>\n"
+            //  "</div>\n"
              "</body>\n"
              "</html>\n");
 
