@@ -3,9 +3,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include "pico/stdlib.h"
-#include "hardware/adc.h"
 #include "hardware/pwm.h"
-#include "hardware/timer.h"
 #include "hardware/i2c.h"
 #include "lib/ssd1306.h"
 #include "pico/cyw43_arch.h"
@@ -33,7 +31,6 @@ ssd1306_t ssd; // Inicializa a estrutura do display
 #define LED_Green 11 // Define o LED Verde na GPIO 11
 #define LED_Blue 12 // Define o LED Azul na GPIO 12
 #define LED_Red 13 // Define o LED Vermelho na GPIO 13
-#define joystick_Y 26 // Define o pino VRY do Joystick na GPIO 26
 
 // Definição do pino do LED CYW43
 #define LED_PIN CYW43_WL_GPIO_LED_PIN   // GPIO do CI CYW43
@@ -43,10 +40,15 @@ static volatile uint32_t last_time = 0; // Armazena o tempo do último clique do
 
 // LED RGB
 volatile bool LED_activate = false; // Armazena se o LED RGB está ativo
-volatile float intensidade = 100.0; // Guarda o valor da intensidade dos LEDs
-volatile float cor_verde = 255.0; // Guarda o valor de 0 a 255 para o LED Verde
-volatile float cor_azul = 255.0; // Guarda o valor de 0 a 255 para o LED Azul
-volatile float cor_vermelho = 255.0; // Guarda o valor de 0 a 255 para o LED Vermelho
+volatile int intensidade = 100; // Guarda o valor da intensidade dos LEDs
+volatile int cor_verde = 255; // Guarda o valor de 0 a 255 para o LED Verde
+volatile int cor_azul = 255; // Guarda o valor de 0 a 255 para o LED Azul
+volatile int cor_vermelho = 255; // Guarda o valor de 0 a 255 para o LED Vermelho
+
+// Strings para o Display OLED
+char str_cor_verde[3]; // Guarda o valor da cor verde em string
+char str_cor_azul[3]; // Guarda o valor da cor azul em string
+char str_cor_vermelho[3]; // Guarda o valor da cor vermelho em string
 
 // ---------------------------------- Declaração das Funções do Web Server ----------------------------------
 
@@ -85,6 +87,42 @@ void pwm_init_gpio(uint gpio, uint wrap){
     uint slice = pwm_gpio_to_slice_num(gpio); // Guarda o canal do PWM
     pwm_set_wrap(slice, wrap); // Define o valor do Wrap do canal correspondente
     pwm_set_enabled(slice, true); // Habilita o PWM no canal
+}
+
+// Função para exibir informações no display
+void display_oled(){
+    // Cria as bordas do display
+    ssd1306_rect(&ssd, 0, 0, 127, 63, true, false); // Borda principal
+    ssd1306_line(&ssd, 1, 12, 126, 12, true); // Desenha uma linha horizontal
+    ssd1306_line(&ssd, 1, 24, 126, 24, true); // Desenha uma linha horizontal
+
+    // Cabeçalho
+    ssd1306_draw_string(&ssd, "EMB Web Server", 8, 3); // Desenha uma string
+    ssd1306_draw_string(&ssd, "Central da casa", 3, 15); // Desenha uma string
+
+    // Indica se a lampada está acesa
+    ssd1306_draw_string(&ssd, "Lampada:   ", 18, 27); // Desenha uma string
+    if(LED_activate){
+        ssd1306_draw_string(&ssd, "On", 86, 27); // Desenha uma string
+    }else{
+        ssd1306_draw_string(&ssd, "Off", 82, 27); // Desenha uma string
+    }
+
+    // Desenha os valores RGB
+    ssd1306_draw_string(&ssd, "R    G    B    ", 5, 39); // Desenha uma string
+    sprintf(str_cor_vermelho, "%d", cor_vermelho); // Converte o int em string
+    ssd1306_draw_string(&ssd, str_cor_vermelho, 16, 39); // Desenha uma string
+    sprintf(str_cor_verde, "%d", cor_verde); // Converte o int em string
+    ssd1306_draw_string(&ssd, str_cor_verde, 56, 39); // Desenha uma string
+    sprintf(str_cor_azul, "%d", cor_azul); // Converte o int em string
+    ssd1306_draw_string(&ssd, str_cor_azul, 96, 39); // Desenha uma string
+
+    // Desenha a barra de intensidade
+    ssd1306_draw_string(&ssd, "               ", 3, 51); // Desenha uma string (apaga a parte variável da barra para redesenha-la)
+    ssd1306_rect(&ssd, 50, 12, 102, 10, true, false); // Desenha um retângulo
+    ssd1306_rect(&ssd, 51, 13, intensidade, 8, true, true); // Desenha um retângulo
+
+    ssd1306_send_data(&ssd); // Atualiza o display
 }
 
 // Função de callback de interrupção dos botões
@@ -135,11 +173,8 @@ int main()
     pwm_init_gpio(LED_Blue, 100); // Inicia o PWM para a GPIO 12 do LED Azul
     pwm_init_gpio(LED_Red, 100); // Inicia o PWM para a GPIO 13 do LED Vermelho
 
-    // ADC
-    adc_init();
-    adc_gpio_init(joystick_Y); // Inicia o ADC para o GPIO 26 do VRY do Joystick
 
-    // Funções de interrupção dos botões A e do Joystick
+    // Funções de interrupção dos botões A e B
     gpio_set_irq_enabled_with_callback(button_A, GPIO_IRQ_EDGE_FALL, true, &gpio_irq_handler);
     gpio_set_irq_enabled_with_callback(button_B, GPIO_IRQ_EDGE_FALL, true, &gpio_irq_handler);
 
@@ -198,6 +233,7 @@ int main()
     while (true)
     {
         cor_led_rgb();
+        display_oled();
 
         /* 
         * Efetuar o processamento exigido pelo cyw43_driver ou pela stack TCP/IP.
@@ -233,32 +269,24 @@ void user_request(char **request){
     {
         LED_activate = false;
     }
-    else if (strstr(*request, "GET /?r=") != NULL)
-    {
-        sscanf(*request, "GET /?r=%f&g=%f&b=%f&i=%f", &cor_vermelho, &cor_verde, &cor_azul, &intensidade);
-    }
-    // else if (strstr(*request, "GET /green_off") != NULL)
-    // {
-    //     gpio_put(LED_GREEN_PIN, 0);
-    // }
-    // else if (strstr(*request, "GET /red_on") != NULL)
-    // {
-    //     gpio_put(LED_RED_PIN, 1);
-    // }
-    // else if (strstr(*request, "GET /red_off") != NULL)
-    // {
-    //     gpio_put(LED_RED_PIN, 0);
-    // }
-    // else if (strstr(*request, "GET /on") != NULL)
-    // {
-    //     cyw43_arch_gpio_put(LED_PIN, 1);
-    // }
-    // else if (strstr(*request, "GET /off") != NULL)
-    // {
-    //     cyw43_arch_gpio_put(LED_PIN, 0);
-    // }
+    else if (strstr(*request, "GET /?rgb=") != NULL) {
+        char hex[8] = {0};  // Ex: "C84646"
+        int intensidade_val;
 
-    printf("Led: %d | Vermelho: %.1f | Verde: %.1f | Azul: %.1f | Intensidade: %.1f", LED_activate, cor_vermelho, cor_verde, cor_azul, intensidade);
+        // Tenta extrair os valores com uma regex simples (ignora o %23)
+        if (sscanf(*request, "GET /?rgb=%%23%6[0-9A-Fa-f]&i=%d", hex, &intensidade_val) == 2) {
+            int r, g, b;
+            if (sscanf(hex, "%02x%02x%02x", &r, &g, &b) == 3) {
+                cor_vermelho = r;
+                cor_verde = g;
+                cor_azul = b;
+                intensidade = intensidade_val;
+
+                printf("RGB extraído: R=%d G=%d B=%d Intensidade=%d\n", r, g, b, intensidade_val);
+            }
+        }
+    }
+    printf("Led: %d | Vermelho: %.d | Verde: %.d | Azul: %.d | Intensidade: %.d", LED_activate, cor_vermelho, cor_verde, cor_azul, intensidade);
 };
 
 // Função de callback para processar requisições HTTP
@@ -284,6 +312,10 @@ static err_t tcp_server_recv(void *arg, struct tcp_pcb *tpcb, struct pbuf *p, er
     // Cria a resposta HTML
     char html[1024];
 
+    // Converter o valor RGB para Hex e mostrar no HTML
+    char color_hex[8];  // Ex: "#C84646"
+    snprintf(color_hex, sizeof(color_hex), "#%02X%02X%02X", cor_vermelho, cor_verde, cor_azul);
+
     // Instruções html do webserver
     snprintf(html, sizeof(html), // Formatar uma string e armazená-la em um buffer de caracteres
              "HTTP/1.1 200 OK\r\n"
@@ -297,34 +329,28 @@ static err_t tcp_server_recv(void *arg, struct tcp_pcb *tpcb, struct pbuf *p, er
              "body{background-color:#6E0000;font-family:Arial,sans-serif;text-align:center;margin-top:50px;color:#fff;}\n"
              "h1{font-size:64px;margin-bottom:30px;}\n"
              "h2{font-size:48px;margin:10px;}\n"
-             "label{font-size:24px;}\n"
-            //  "input{padding:5px;border-radius:10px;margin: 10px;}\n"
+             "label{font-size:24px;margin:30px 10px}\n"
              "button{background-color:#C84646;font-size:24px;margin:10px;padding:15px 30px;border-radius:10px;color:#fff;}\n"
+             ".c{display: flex;justify-content:center;align-items: center;}\n"
              "</style>\n"
              "</head>\n"
              "<body>\n"
              "<h1>Central da casa</h1>\n"
              "<h2>Lampada</h2>\n"
+             "<div class=\"c\">\n"
              "<form action=\"./led_on\"><button>On</button></form>\n"
-             "<form action=\"./led_off\"><button>Off</button></form>\n"
+             "<form action=\"./led_off\"><button>Off</button></form><br>\n"
+             "</div>\n"
              "<form action=\"/\" method=\"GET\">\n"
-             "<label>Vermelho (0-255):</label>\n"
-             "<input type=\"number\" name=\"r\" min=\"0\" max=\"255\" required>\n"
-             "<label>Verde (0-255):</label>\n"
-             "<input type=\"number\" name=\"g\" min=\"0\" max=\"255\" required>\n"
-             "<label>Azul (0-255):</label>\n"
-             "<input type=\"number\" name=\"b\" min=\"0\" max=\"255\" required>\n"
-             "<label>Intensidade (0-100):</label>\n"
-             "<input type=\"number\" name=\"i\" min=\"0\" max=\"100\" required>\n"
+             "<label>Cor RGB:</label>\n"
+             "<input type=\"color\" name=\"rgb\"value=\"%s\"><br>\n"
+             "<label>Intensidade:</label>\n"
+             "<input type=\"range\" name=\"i\" min=\"0\" max=\"100\" value=\"%d\"><br>\n"
              "<button type=\"submit\">Aplicar</button>\n"
              "</form>\n"
-            //  "<h2>Alarme</h2>\n"
-            //  "<div class=\"centralizar\">\n"
-            //  "<form action=\"./alarme_on\"><button>Ativar alarme</button></form>\n"
-            //  "<form action=\"./alarme_off\"><button>Desativar alarme</button></form>\n"
-            //  "</div>\n"
              "</body>\n"
-             "</html>\n");
+             "</html>\n",
+            color_hex, intensidade);
 
     // Escreve dados para envio (mas não os envia imediatamente).
     tcp_write(tpcb, html, strlen(html), TCP_WRITE_FLAG_COPY);

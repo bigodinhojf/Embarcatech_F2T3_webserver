@@ -90,10 +90,8 @@ pico_enable_stdio_usb(Embarcatech_F2T3_webserver 1)
 target_link_libraries(Embarcatech_F2T3_webserver
         pico_stdlib
         hardware_gpio
-        hardware_adc
         hardware_pwm
         hardware_i2c
-        hardware_timer
         pico_cyw43_arch_lwip_threadsafe_background
 )
 
