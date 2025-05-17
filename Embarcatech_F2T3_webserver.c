@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include "pico/stdlib.h"
 #include "hardware/pwm.h"
+#include "hardware/adc.h"
 #include "hardware/i2c.h"
 #include "lib/ssd1306.h"
 #include "pico/cyw43_arch.h"
@@ -31,6 +32,7 @@ ssd1306_t ssd; // Inicializa a estrutura do display
 #define LED_Green 11 // Define o LED Verde na GPIO 11
 #define LED_Blue 12 // Define o LED Azul na GPIO 12
 #define LED_Red 13 // Define o LED Vermelho na GPIO 13
+#define joystick_Y 26 // VRY do Joystick GPIO 26
 
 // Definição do pino do LED CYW43
 #define LED_PIN CYW43_WL_GPIO_LED_PIN   // GPIO do CI CYW43
@@ -45,10 +47,11 @@ volatile int cor_verde = 255; // Guarda o valor de 0 a 255 para o LED Verde
 volatile int cor_azul = 255; // Guarda o valor de 0 a 255 para o LED Azul
 volatile int cor_vermelho = 255; // Guarda o valor de 0 a 255 para o LED Vermelho
 
+// Temperatura
+volatile float temp = 0; // Guarda o valor da temperatura
+
 // Strings para o Display OLED
-char str_cor_verde[3]; // Guarda o valor da cor verde em string
-char str_cor_azul[3]; // Guarda o valor da cor azul em string
-char str_cor_vermelho[3]; // Guarda o valor da cor vermelho em string
+char str_temp[3]; // Guarda o valor da temperatura em string
 
 // ---------------------------------- Declaração das Funções do Web Server ----------------------------------
 
@@ -89,6 +92,14 @@ void pwm_init_gpio(uint gpio, uint wrap){
     pwm_set_enabled(slice, true); // Habilita o PWM no canal
 }
 
+// Função para definir o valor de temperatura simulado pelo Joystick
+void temperatura(){
+    adc_select_input(0); // Seleciona o ADC0 referente ao VRY do Joystick (GPIO 26)
+    uint16_t value_vry = adc_read(); // Ler o valor do ADC selecionado (ADC0 - VRY) e guarda
+
+    temp = ((value_vry * 35.0) / 4095.0) + 15;
+}
+
 // Função para exibir informações no display
 void display_oled(){
     // Cria as bordas do display
@@ -108,19 +119,15 @@ void display_oled(){
         ssd1306_draw_string(&ssd, "Off", 82, 27); // Desenha uma string
     }
 
-    // Desenha os valores RGB
-    ssd1306_draw_string(&ssd, "R    G    B    ", 5, 39); // Desenha uma string
-    sprintf(str_cor_vermelho, "%d", cor_vermelho); // Converte o int em string
-    ssd1306_draw_string(&ssd, str_cor_vermelho, 16, 39); // Desenha uma string
-    sprintf(str_cor_verde, "%d", cor_verde); // Converte o int em string
-    ssd1306_draw_string(&ssd, str_cor_verde, 56, 39); // Desenha uma string
-    sprintf(str_cor_azul, "%d", cor_azul); // Converte o int em string
-    ssd1306_draw_string(&ssd, str_cor_azul, 96, 39); // Desenha uma string
-
     // Desenha a barra de intensidade
-    ssd1306_draw_string(&ssd, "               ", 3, 51); // Desenha uma string (apaga a parte variável da barra para redesenha-la)
-    ssd1306_rect(&ssd, 50, 12, 102, 10, true, false); // Desenha um retângulo
-    ssd1306_rect(&ssd, 51, 13, intensidade, 8, true, true); // Desenha um retângulo
+    ssd1306_draw_string(&ssd, "               ", 3, 38); // Desenha uma string (apaga a parte variável da barra para redesenha-la)
+    ssd1306_rect(&ssd, 38, 12, 102, 10, true, false); // Desenha um retângulo
+    ssd1306_rect(&ssd, 39, 13, intensidade, 8, true, true); // Desenha um retângulo
+
+    // Temperatura
+    ssd1306_draw_string(&ssd, "Temperatura:  C", 3, 51); // Desenha uma string
+    sprintf(str_temp, "%.0f", temp); // Converte float em string
+    ssd1306_draw_string(&ssd, str_temp, 99, 51); // Desenha uma string
 
     ssd1306_send_data(&ssd); // Atualiza o display
 }
@@ -173,6 +180,9 @@ int main()
     pwm_init_gpio(LED_Blue, 100); // Inicia o PWM para a GPIO 12 do LED Azul
     pwm_init_gpio(LED_Red, 100); // Inicia o PWM para a GPIO 13 do LED Vermelho
 
+    // ADC
+    adc_init();
+    adc_gpio_init(joystick_Y); // Inicia o ADC para o GPIO 26 do VRY do Joystick
 
     // Funções de interrupção dos botões A e B
     gpio_set_irq_enabled_with_callback(button_A, GPIO_IRQ_EDGE_FALL, true, &gpio_irq_handler);
@@ -233,6 +243,7 @@ int main()
     while (true)
     {
         cor_led_rgb();
+        temperatura();
         display_oled();
 
         /* 
@@ -347,10 +358,11 @@ static err_t tcp_server_recv(void *arg, struct tcp_pcb *tpcb, struct pbuf *p, er
              "<label>Intensidade:</label>\n"
              "<input type=\"range\" name=\"i\" min=\"0\" max=\"100\" value=\"%d\"><br>\n"
              "<button type=\"submit\">Aplicar</button>\n"
+             "<h2>Temperatura: %.1f &deg;C</h2>\n"
              "</form>\n"
              "</body>\n"
              "</html>\n",
-            color_hex, intensidade);
+            color_hex, intensidade, temp);
 
     // Escreve dados para envio (mas não os envia imediatamente).
     tcp_write(tpcb, html, strlen(html), TCP_WRITE_FLAG_COPY);

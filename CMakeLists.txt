@@ -91,6 +91,7 @@ target_link_libraries(Embarcatech_F2T3_webserver
         pico_stdlib
         hardware_gpio
         hardware_pwm
+        hardware_adc
         hardware_i2c
         pico_cyw43_arch_lwip_threadsafe_background
 )
