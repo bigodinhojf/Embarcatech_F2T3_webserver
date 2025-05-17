@@ -30,7 +30,7 @@ A partir da página Web o usuário pode controlar o estado da lâmpada inteligen
    - Foi desenvolvida uma fórmula que transforma os valores de cor e intensidade para cada LED, para a escala do PWM:
 
 <div align="center">
-    <img width = "60%" src = "">
+    <img width = "60%" src = "https://github.com/user-attachments/assets/0e9eb58c-4388-4a0b-8803-bf40334195b9">
 </div>
 
    - O usuário modifica esses valores de cor e intensidade a partir de inputs na página Web.
@@ -42,7 +42,7 @@ A partir da página Web o usuário pode controlar o estado da lâmpada inteligen
    - Foi desenvolvida uma fórmula que transforma os valores ADC lidos do eixo Y do Joystick para a escala de temperatura definida (15°C a 50°C):
 
 <div align="center">
-    <img width = "60%" src = "">
+    <img width = "60%" src = "https://github.com/user-attachments/assets/e0dcc650-206e-4b94-b087-4c15463e262e">
 </div>
 
 3. Página Web
